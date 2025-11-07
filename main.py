@@ -87,18 +87,6 @@ def create_headers(private_key, method: str, path: str) -> dict:
         "KALSHI-ACCESS-TIMESTAMP": timestamp,
     }
 
-def conv_payload_to_orderstruct(payload: dict) -> dict:
-    """Convert orderbook payload to structured format"""
-    orderbook = {
-        "yes": [],
-        "no": []
-    }
-    for price_level in payload.get("yes", []):
-        orderbook["yes"].append({"price": price_level[0], "size": price_level[1]})
-    for price_level in payload.get("no", []):
-        orderbook["no"].append({"price": price_level[0], "size": price_level[1]})
-    return orderbook
-
 async def orderbook_websocket():
     """Connect to WebSocket and subscribe to orderbook"""
     # Load private key
