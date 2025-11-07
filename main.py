@@ -7,13 +7,59 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 import os
 from dotenv import load_dotenv
-load_dotenv(override=True)
 from rich import print
+import csv
+import os
+
+load_dotenv(override=True)
 
 # Configuration
 KEY_ID = os.getenv("KALSHI_API_KEY")
 MARKET_TICKER = "KXNFLGAME-25NOV06LVDEN-DEN"  # Replace with any open market
 WS_URL = "wss://api.elections.kalshi.com/trade-api/ws/v2"
+    
+def process_snapshot_messsage(message: dict):
+    timestamp = int(time.time() * 1000)  # milliseconds since epoch
+    ticker = message.get('market_ticker')
+    yes_dollars = message.get('yes_dollars', [])
+    no_dollars = message.get('no_dollars', [])
+
+    # Check if file exists to determine if we need to write headers
+    file_exists = os.path.exists('snapshots.csv')
+
+    with open('snapshots.csv', 'a', newline='') as file:
+        writer = csv.writer(file)
+
+        # Write header if file is new
+        if not file_exists:
+            writer.writerow(['timestamp', 'ticker', 'side', 'dollar', 'contracts'])
+
+        # Write yes side data
+        for dollar, contracts in yes_dollars:
+            writer.writerow([timestamp, ticker, 'yes', dollar, contracts])
+
+        # Write no side data
+        for dollar, contracts in no_dollars:
+            writer.writerow([timestamp, ticker, 'no', dollar, contracts])
+
+def process_delta_messsage(message: dict):
+    timestamp = int(time.time() * 1000)  # milliseconds since epoch
+    ticker = message.get('market_ticker')
+    side = message.get('side')
+    dollar = message.get('price_dollars')
+    delta = message.get('delta')
+
+    # Check if file exists to determine if we need to write headers
+    file_exists = os.path.exists('deltas.csv')
+
+    with open('deltas.csv', 'a', newline='') as file:
+        writer = csv.writer(file)
+
+        # Write header if file is new
+        if not file_exists:
+            writer.writerow(['timestamp', 'ticker', 'side', 'dollar', 'delta'])
+
+        writer.writerow([timestamp, ticker, side, dollar, delta])
 
 def sign_pss_text(private_key: str, text: str) -> str:
     """Sign message using RSA-PSS"""
@@ -51,7 +97,6 @@ async def orderbook_websocket():
 
     # Create WebSocket headers
     ws_headers = create_headers(private_key, "GET", "/trade-api/ws/v2")
-    print(ws_headers)
 
     async with websockets.connect(WS_URL, additional_headers=ws_headers) as websocket:
         print(f"Connected! Subscribing to orderbook for {MARKET_TICKER}")
@@ -76,14 +121,16 @@ async def orderbook_websocket():
                 print(f"Subscribed: {data}")
 
             elif msg_type == "orderbook_snapshot":
-                print(f"Orderbook snapshot: {data}")
+                process_snapshot_messsage(data.get('msg'))
+                # print(f"Orderbook snapshot: {data}")
 
             elif msg_type == "orderbook_delta":
                 # The client_order_id field is optional - only present when you caused the change
                 if 'client_order_id' in data.get('data', {}):
                     print(f"Orderbook update (your order {data['data']['client_order_id']}): {data}")
                 else:
-                    print(f"Orderbook update: {data}")
+                    process_delta_messsage(data.get('msg'))
+                    # print(f"Orderbook update: {data}")
 
             elif msg_type == "error":
                 print(f"Error: {data}")
