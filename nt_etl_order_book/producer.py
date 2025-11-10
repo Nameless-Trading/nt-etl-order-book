@@ -10,9 +10,10 @@ class Producer:
         self.kalshi_rest_client = KalshiRestClient()
         self.kalshi_ws_client = KalshiWSClient()
         self.redis_client = RedisClient()
+        self.pending_tasks = set()
 
     async def _save_with_error_handling(self, coro):
-        """Helper to save to Redis with error handling (fire-and-forget)."""
+        """Helper to save to Redis with error handling."""
         try:
             message_id = await coro
             print(f"Saved to Redis: {message_id}")
@@ -33,24 +34,33 @@ class Producer:
             ):
                 msg_type = message.get("type")
 
-                # Save to Redis based on message type (fire-and-forget with error handling)
+                # Save to Redis based on message type
                 if msg_type == "orderbook_snapshot":
-                    asyncio.create_task(
+                    task = asyncio.create_task(
                         self._save_with_error_handling(
                             self.redis_client.save_orderbook_snapshot(message)
                         )
                     )
+                    self.pending_tasks.add(task)
+                    task.add_done_callback(self.pending_tasks.discard)
 
                 elif msg_type == "orderbook_delta":
-                    asyncio.create_task(
+                    task = asyncio.create_task(
                         self._save_with_error_handling(
                             self.redis_client.save_orderbook_delta(message)
                         )
                     )
+                    self.pending_tasks.add(task)
+                    task.add_done_callback(self.pending_tasks.discard)
 
                 else:
                     # For other message types (like 'subscribed', 'error'), just print
                     print(f"Received {msg_type}: {message}")
         finally:
+            # Wait for all pending tasks to complete before closing
+            if self.pending_tasks:
+                print(f"Waiting for {len(self.pending_tasks)} pending Redis writes to complete...")
+                await asyncio.gather(*self.pending_tasks, return_exceptions=True)
+
             # Clean up Redis connection
             await self.redis_client.close()

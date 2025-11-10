@@ -19,31 +19,31 @@ class RedisClient:
         """
         Save an orderbook snapshot to a Redis stream.
 
-        Stream key format: orderbook:snapshot:{market_ticker}
+        Stream key format: orderbook:snapshot (consolidated stream)
 
         Returns the message ID from Redis.
         """
         msg: dict = message.get("msg", {})
-        market_ticker = str(msg.get("market_ticker"))
+        market_ticker = msg.get("market_ticker")
 
         if not market_ticker:
             raise ValueError("market_ticker not found in message")
 
-        stream_key = f"orderbook:snapshot:{market_ticker}"
+        stream_key = "orderbook:snapshot"
 
         # Prepare data for Redis stream
-        # We'll store the entire message as JSON in a single field
+        # Store numeric values as-is, only stringify what's necessary
         data = {
-            "type": str(message.get("type")),
-            "sid": str(message.get("sid")),
-            "seq": str(message.get("seq")),
+            "type": message.get("type"),
+            "sid": message.get("sid"),
+            "seq": message.get("seq"),
             "market_ticker": market_ticker,
-            "market_id": str(msg.get("market_id")),
+            "market_id": msg.get("market_id"),
             "yes_dollars": json.dumps(msg.get("yes_dollars", [])),
             "no_dollars": json.dumps(msg.get("no_dollars", [])),
             "yes": json.dumps(msg.get("yes", [])),
             "no": json.dumps(msg.get("no", [])),
-            "ingestion_ts": str(int(time.time() * 1000)),
+            "ingestion_ts": int(time.time() * 1000),
         }
 
         # Add to Redis stream
@@ -56,31 +56,32 @@ class RedisClient:
         """
         Save an orderbook delta to a Redis stream.
 
-        Stream key format: orderbook:delta:{market_ticker}
+        Stream key format: orderbook:delta (consolidated stream)
 
         Returns the message ID from Redis.
         """
         msg: dict = message.get("msg", {})
-        market_ticker = str(msg.get("market_ticker"))
+        market_ticker = msg.get("market_ticker")
 
         if not market_ticker:
             raise ValueError("market_ticker not found in message")
 
-        stream_key = f"orderbook:delta:{market_ticker}"
+        stream_key = "orderbook:delta"
 
         # Prepare data for Redis stream
+        # Store numeric values as-is, only stringify what's necessary
         data = {
-            "type": str(message.get("type")),
-            "sid": str(message.get("sid")),
-            "seq": str(message.get("seq")),
+            "type": message.get("type"),
+            "sid": message.get("sid"),
+            "seq": message.get("seq"),
             "market_ticker": market_ticker,
-            "market_id": str(msg.get("market_id")),
-            "price": str(msg.get("price")),
+            "market_id": msg.get("market_id"),
+            "price": msg.get("price"),
             "price_dollars": msg.get("price_dollars"),
-            "delta": str(msg.get("delta")),
-            "side": str(msg.get("side")),
-            "ts": str(msg.get("ts")),
-            "ingestion_ts": str(int(time.time() * 1000)),
+            "delta": msg.get("delta"),
+            "side": msg.get("side"),
+            "ts": msg.get("ts"),
+            "ingestion_ts": int(time.time() * 1000),
         }
 
         # Add to Redis stream
