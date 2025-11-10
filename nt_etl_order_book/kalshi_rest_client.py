@@ -1,6 +1,4 @@
 import base64
-import csv
-import json
 import os
 import time
 
@@ -8,13 +6,9 @@ import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from dotenv import load_dotenv
-from rich import print
-
-    
 
 
 class KalshiRestClient:
-
     def __init__(
         self,
         kalshi_api_key: str | None = None,
@@ -25,7 +19,7 @@ class KalshiRestClient:
 
         if kalshi_api_key is None:
             self._kalshi_api_key = os.getenv("KALSHI_API_KEY")
-        
+
         if base_url is None:
             self._base_url = os.getenv("KALSHI_BASE_URL")
 
@@ -45,7 +39,6 @@ class KalshiRestClient:
         )
         return base64.b64encode(signature).decode("utf-8")
 
-
     def _create_headers(self, method: str, path: str) -> dict:
         """Create authentication headers"""
         # Load private key
@@ -63,33 +56,18 @@ class KalshiRestClient:
             "KALSHI-ACCESS-SIGNATURE": signature,
             "KALSHI-ACCESS-TIMESTAMP": timestamp,
         }
-    
+
     def get_tickers(self, series_ticker: str) -> list[str]:
         endpoint = "/trade-api/v2/markets"
         limit = 1000
 
         url = self._base_url + endpoint
-        headers = self._create_headers('GET', path=endpoint)
+        headers = self._create_headers("GET", path=endpoint)
 
-        params = {
-            'series_ticker': series_ticker,
-            'limit': limit
-        }
+        params = {"series_ticker": series_ticker, "limit": limit}
 
         response = requests.get(url=url, params=params, headers=headers)
-        markets = response.json()['markets']
-        tickers = [market['ticker'] for market in markets]
+        markets = response.json()["markets"]
+        tickers = [market["ticker"] for market in markets]
 
         return tickers
-
-
-if __name__ == '__main__':
-    from rich import print
-
-    series_ticker = "KXNCAAFGAME"
-
-    client = KalshiRestClient()
-
-    tickers = client.get_tickers(series_ticker)
-    print(tickers)
-

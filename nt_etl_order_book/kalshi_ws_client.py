@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import csv
 import json
@@ -11,11 +10,8 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from dotenv import load_dotenv
 from rich import print
 
-    
-
 
 class KalshiWSClient:
-
     def __init__(
         self,
         kalshi_api_key: str | None = None,
@@ -26,13 +22,12 @@ class KalshiWSClient:
 
         if kalshi_api_key is None:
             self._kalshi_api_key = os.getenv("KALSHI_API_KEY")
-        
+
         if ws_url is None:
             self._ws_url = os.getenv("KALSHI_WS_URL")
 
         if private_key is None:
             self._private_key = os.getenv("KALSHI_PRIVATE_KEY")
-
 
     @staticmethod
     def _process_snapshot_message(message: dict):
@@ -79,7 +74,6 @@ class KalshiWSClient:
 
             writer.writerow([timestamp, ticker, side, dollar, delta])
 
-
     @staticmethod
     def _sign_pss_text(private_key, text: str) -> str:
         """Sign message using RSA-PSS"""
@@ -92,7 +86,6 @@ class KalshiWSClient:
             hashes.SHA256(),
         )
         return base64.b64encode(signature).decode("utf-8")
-
 
     def _create_headers(self, method: str, path: str) -> dict:
         """Create authentication headers"""
@@ -112,20 +105,24 @@ class KalshiWSClient:
             "KALSHI-ACCESS-TIMESTAMP": timestamp,
         }
 
-
     async def get_order_book_messages(self, market_tickers: list[str]):
         """Connect to WebSocket and subscribe to orderbook"""
         # Create WebSocket headers
         ws_headers = self._create_headers("GET", "/trade-api/ws/v2")
 
-        async with websockets.connect(self._ws_url, additional_headers=ws_headers) as websocket:
-            print(f"Connected! Subscribing to orderbook.")
+        async with websockets.connect(
+            self._ws_url, additional_headers=ws_headers
+        ) as websocket:
+            print("Connected! Subscribing to orderbook.")
 
             # Subscribe to orderbook
             subscribe_msg = {
                 "id": 1,
                 "cmd": "subscribe",
-                "params": {"channels": ["orderbook_delta"], "market_tickers": market_tickers},
+                "params": {
+                    "channels": ["orderbook_delta"],
+                    "market_tickers": market_tickers,
+                },
             }
             await websocket.send(json.dumps(subscribe_msg))
 
@@ -135,23 +132,17 @@ class KalshiWSClient:
             # Check message for valid seq
             async for message in websocket:
                 data = json.loads(message)
-                msg_type = data['type']
+                msg_type = data["type"]
 
                 # Validate sequence number if present
-                if msg_type in ['orderbook_snapshot', 'orderbook_delta']:
-                    seq = data['seq']
+                if msg_type in ["orderbook_snapshot", "orderbook_delta"]:
+                    seq = data["seq"]
 
                     if seq != expected_seq:
-                        raise RuntimeError(f"Missed message! Expected seq: {expected_seq}, Received seq: {seq}")
+                        raise RuntimeError(
+                            f"Missed message! Expected seq: {expected_seq}, Received seq: {seq}"
+                        )
                     else:
                         expected_seq += 1
-                
+
                 yield data
-
-if __name__ == '__main__':
-    async def main():
-        market_tickers = ["KXNCAAFGAME-25NOV15TEXUGA-UGA", "KXNCAAFGAME-25NOV15TEXUGA-TEX"]
-        kalshi_client = KalshiWSClient()
-        await kalshi_client.get_order_book_messages(market_tickers=market_tickers)
-
-    asyncio.run(main())
