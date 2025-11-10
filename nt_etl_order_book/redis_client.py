@@ -4,7 +4,6 @@ import time
 
 import redis.asyncio
 from dotenv import load_dotenv
-from rich import print
 
 
 class RedisClient:
@@ -44,7 +43,7 @@ class RedisClient:
             "no_dollars": json.dumps(msg.get("no_dollars", [])),
             "yes": json.dumps(msg.get("yes", [])),
             "no": json.dumps(msg.get("no", [])),
-            "ingestion_ts": str(time.time()),
+            "ingestion_ts": str(int(time.time() * 1000)),
         }
 
         # Add to Redis stream
@@ -81,7 +80,7 @@ class RedisClient:
             "delta": str(msg.get("delta")),
             "side": str(msg.get("side")),
             "ts": str(msg.get("ts")),
-            "ingestion_ts": str(time.time()),
+            "ingestion_ts": str(int(time.time() * 1000)),
         }
 
         # Add to Redis stream

@@ -1,3 +1,5 @@
+import asyncio
+
 from kalshi_rest_client import KalshiRestClient
 from kalshi_ws_client import KalshiWSClient
 from redis_client import RedisClient
@@ -9,13 +11,21 @@ class Producer:
         self.kalshi_ws_client = KalshiWSClient()
         self.redis_client = RedisClient()
 
+    async def _save_with_error_handling(self, coro):
+        """Helper to save to Redis with error handling (fire-and-forget)."""
+        try:
+            message_id = await coro
+            print(f"Saved to Redis: {message_id}")
+        except Exception as e:
+            print(f"Error saving to Redis: {e}")
+
     async def run(self, series_ticker: str) -> None:
         market_tickers = self.kalshi_rest_client.get_tickers(
             series_ticker=series_ticker
         )
 
-        # TESTING!
-        market_tickers = ['KXNCAAFGAME-25NOV15TEXUGA-UGA']
+        # # TESTING!
+        # market_tickers = ['KXNCAAFGAME-25NOV15TEXUGA-UGA']
 
         try:
             async for message in self.kalshi_ws_client.get_order_book_messages(
@@ -23,16 +33,20 @@ class Producer:
             ):
                 msg_type = message.get("type")
 
-                # Save to Redis based on message type
+                # Save to Redis based on message type (fire-and-forget with error handling)
                 if msg_type == "orderbook_snapshot":
-                    message_id = await self.redis_client.save_orderbook_snapshot(
-                        message
+                    asyncio.create_task(
+                        self._save_with_error_handling(
+                            self.redis_client.save_orderbook_snapshot(message)
+                        )
                     )
-                    print(f"Saved snapshot to Redis: {message_id}")
 
                 elif msg_type == "orderbook_delta":
-                    message_id = await self.redis_client.save_orderbook_delta(message)
-                    print(f"Saved delta to Redis: {message_id}")
+                    asyncio.create_task(
+                        self._save_with_error_handling(
+                            self.redis_client.save_orderbook_delta(message)
+                        )
+                    )
 
                 else:
                     # For other message types (like 'subscribed', 'error'), just print
