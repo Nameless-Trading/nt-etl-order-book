@@ -1,8 +1,10 @@
 import json
 import os
+import time
 
 import redis.asyncio
 from dotenv import load_dotenv
+from rich import print
 
 
 class RedisClient:
@@ -22,8 +24,8 @@ class RedisClient:
 
         Returns the message ID from Redis.
         """
-        msg = message.get("msg", {})
-        market_ticker = msg.get("market_ticker")
+        msg: dict = message.get("msg", {})
+        market_ticker = str(msg.get("market_ticker"))
 
         if not market_ticker:
             raise ValueError("market_ticker not found in message")
@@ -33,15 +35,16 @@ class RedisClient:
         # Prepare data for Redis stream
         # We'll store the entire message as JSON in a single field
         data = {
-            "type": message.get("type"),
+            "type": str(message.get("type")),
             "sid": str(message.get("sid")),
             "seq": str(message.get("seq")),
             "market_ticker": market_ticker,
-            "market_id": msg.get("market_id"),
+            "market_id": str(msg.get("market_id")),
             "yes_dollars": json.dumps(msg.get("yes_dollars", [])),
             "no_dollars": json.dumps(msg.get("no_dollars", [])),
             "yes": json.dumps(msg.get("yes", [])),
             "no": json.dumps(msg.get("no", [])),
+            "ingestion_ts": str(time.time()),
         }
 
         # Add to Redis stream
@@ -58,8 +61,8 @@ class RedisClient:
 
         Returns the message ID from Redis.
         """
-        msg = message.get("msg", {})
-        market_ticker = msg.get("market_ticker")
+        msg: dict = message.get("msg", {})
+        market_ticker = str(msg.get("market_ticker"))
 
         if not market_ticker:
             raise ValueError("market_ticker not found in message")
@@ -68,16 +71,17 @@ class RedisClient:
 
         # Prepare data for Redis stream
         data = {
-            "type": message.get("type"),
+            "type": str(message.get("type")),
             "sid": str(message.get("sid")),
             "seq": str(message.get("seq")),
             "market_ticker": market_ticker,
-            "market_id": msg.get("market_id"),
+            "market_id": str(msg.get("market_id")),
             "price": str(msg.get("price")),
             "price_dollars": msg.get("price_dollars"),
             "delta": str(msg.get("delta")),
-            "side": msg.get("side"),
-            "ts": msg.get("ts"),
+            "side": str(msg.get("side")),
+            "ts": str(msg.get("ts")),
+            "ingestion_ts": str(time.time()),
         }
 
         # Add to Redis stream
