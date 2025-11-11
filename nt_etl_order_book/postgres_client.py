@@ -10,7 +10,7 @@ class PostgresClient:
         load_dotenv(override=True)
 
         if database_url is None:
-            self._database_url = os.getenv("DATABASE_PUBLIC_URL")
+            self._database_url = os.getenv("DATABASE_URL")
         else:
             self._database_url = database_url
 
