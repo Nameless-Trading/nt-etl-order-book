@@ -14,34 +14,39 @@ class Consumer:
     async def run(self):
         """
         Run the consumer: connect to Postgres, initialize schema,
-        process existing snapshots, then listen for new ones.
+        and continuously process snapshots and deltas.
         """
         # Initialize database schema
         self.postgres_client.initialize_schema()
         print("Database schema initialized")
 
-        # Process existing snapshots and deltas first
-        await self._process_existing_snapshots()
-        await self._process_existing_deltas()
-        
-        # Then listen for new snapshots
-        # TODO
+        # Process snapshots and deltas concurrently
+        await asyncio.gather(
+            self._process_snapshots(),
+            self._process_deltas(),
+        )
 
-    async def _process_existing_snapshots(self):
-        num_proccessed = 0
+    async def _process_snapshots(self):
+        """
+        Continuously process orderbook snapshots from Redis stream.
+        Handles both existing messages (backlog) and new incoming messages.
+        """
         start_id = "-"
-        records = []
-        processed_ids = []
+        num_processed = 0
 
-        print("Processing snapshots")
+        print("Starting snapshot processor")
         while True:
+            records = []
+            processed_ids = []
+
             messages = await self.redis_client.get_orderbook_snapshots(
-                count=100, start_id=start_id
+                count=self.batch_size, start_id=start_id
             )
 
-            # Break if no more messages
+            # If no messages, wait and check again for new ones
             if not messages:
-                break
+                await asyncio.sleep(0.1)
+                continue
 
             for redis_stream_id, snapshot in messages:
                 timestamp = snapshot["ingestion_ts"]
@@ -76,43 +81,50 @@ class Consumer:
                     )
 
                 processed_ids.append(redis_stream_id)
-                num_proccessed += 1
                 start_id = "(" + redis_stream_id
 
-        if len(records) > 0:
-            records_df = pl.DataFrame(records).cast(
-                {
-                    "timestamp": pl.Int64,
-                    "ticker": pl.String,
-                    "side": pl.String,
-                    "price_dollars": pl.Decimal(5, 4),
-                    "contracts": pl.Int32,
-                    "redis_stream_id": pl.String,
-                }
-            )
+            if len(records) > 0:
+                records_df = pl.DataFrame(records).cast(
+                    {
+                        "timestamp": pl.Int64,
+                        "ticker": pl.String,
+                        "side": pl.String,
+                        "price_dollars": pl.Decimal(5, 4),
+                        "contracts": pl.Int32,
+                        "redis_stream_id": pl.String,
+                    }
+                )
 
-            print(f"Inserting {len(processed_ids)} snapshots into Postgres")
-            self.postgres_client.insert_orderbook_snapshots(records_df)
+                self.postgres_client.insert_orderbook_snapshots(records_df)
+                num_processed += len(processed_ids)
+                print(f"Processed {len(processed_ids)} snapshots (total: {num_processed})")
 
-            print(f"Deleting {len(processed_ids)} snapshots from Redis")
-            if processed_ids:
-                await self.redis_client.delete_messages(stream_key="orderbook:snapshot", message_ids=processed_ids)
+                if processed_ids:
+                    await self.redis_client.delete_messages(
+                        stream_key="orderbook:snapshot", message_ids=processed_ids
+                    )
 
-    async def _process_existing_deltas(self):
-        num_proccessed = 0
+    async def _process_deltas(self):
+        """
+        Continuously process orderbook deltas from Redis stream.
+        Handles both existing messages (backlog) and new incoming messages.
+        """
         start_id = "-"
-        records = []
-        processed_ids = []
+        num_processed = 0
 
-        print("Processing deltas")
+        print("Starting delta processor")
         while True:
+            records = []
+            processed_ids = []
+
             messages = await self.redis_client.get_orderbook_deltas(
-                count=100, start_id=start_id
+                count=self.batch_size, start_id=start_id
             )
 
-            # Break if no more messages
+            # If no messages, wait and check again for new ones
             if not messages:
-                break
+                await asyncio.sleep(0.1)
+                continue
 
             for redis_stream_id, delta in messages:
                 timestamp = delta["ingestion_ts"]
@@ -133,27 +145,28 @@ class Consumer:
                 )
 
                 processed_ids.append(redis_stream_id)
-                num_proccessed += 1
                 start_id = "(" + redis_stream_id
 
-        if len(records) > 0:
-            records_df = pl.DataFrame(records).cast(
-                {
-                    "timestamp": pl.Int64,
-                    "ticker": pl.String,
-                    "side": pl.String,
-                    "price_dollars": pl.Decimal(5, 4),
-                    "delta": pl.Int32,
-                    "redis_stream_id": pl.String,
-                }
-            )
+            if len(records) > 0:
+                records_df = pl.DataFrame(records).cast(
+                    {
+                        "timestamp": pl.Int64,
+                        "ticker": pl.String,
+                        "side": pl.String,
+                        "price_dollars": pl.Decimal(5, 4),
+                        "delta": pl.Int32,
+                        "redis_stream_id": pl.String,
+                    }
+                )
 
-            print(f"Inserting {len(processed_ids)} deltas into Postgres")
-            self.postgres_client.insert_orderbook_deltas(records_df)
+                self.postgres_client.insert_orderbook_deltas(records_df)
+                num_processed += len(processed_ids)
+                print(f"Processed {len(processed_ids)} deltas (total: {num_processed})")
 
-            print(f"Deleting {len(processed_ids)} deltas from Redis")
-            if processed_ids:
-                await self.redis_client.delete_messages("orderbook:delta", processed_ids)
+                if processed_ids:
+                    await self.redis_client.delete_messages(
+                        "orderbook:delta", processed_ids
+                    )
 
 
 if __name__ == "__main__":
