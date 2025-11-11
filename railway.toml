@@ -1,2 +1,12 @@
+[build]
+builder = "RAILPACK"
+
 [deploy]
+runtime = "V2"
+numReplicas = 1
 startCommand = "python nt_etl_order_book"
+sleepApplication = false
+useLegacyStacker = false
+multiRegionConfig = {"us-west2":{"numReplicas":1}}
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
