@@ -90,6 +90,96 @@ class RedisClient:
             message_id.decode("utf-8") if isinstance(message_id, bytes) else message_id
         )
 
+    async def get_orderbook_snapshots(
+        self, count: int = 10, start_id: str = "-", end_id: str = "+"
+    ) -> list[tuple[str, dict]]:
+        """
+        Get orderbook snapshots from the Redis stream.
+
+        Args:
+            count: Maximum number of snapshots to retrieve (default: 10)
+            start_id: Starting message ID (default: "-" for beginning of stream)
+            end_id: Ending message ID (default: "+" for end of stream)
+
+        Returns:
+            List of tuples containing (message_id, data_dict) where data_dict
+            contains the snapshot fields with JSON fields parsed back into objects.
+        """
+        stream_key = "orderbook:snapshot"
+
+        # Read from the stream
+        messages = await self._client.xrange(stream_key, start_id, end_id, count)
+
+        # Parse the results
+        results = []
+        for message_id, data in messages:
+            # Decode bytes to strings
+            message_id = (
+                message_id.decode("utf-8")
+                if isinstance(message_id, bytes)
+                else message_id
+            )
+
+            # Decode and parse the data
+            parsed_data = {}
+            for key, value in data.items():
+                key = key.decode("utf-8") if isinstance(key, bytes) else key
+                value = value.decode("utf-8") if isinstance(value, bytes) else value
+
+                # Parse JSON fields back to lists
+                if key in ["yes_dollars", "no_dollars", "yes", "no"]:
+                    parsed_data[key] = json.loads(value)
+                else:
+                    parsed_data[key] = value
+
+            results.append((message_id, parsed_data))
+
+        return results
+
+    async def delete_message(self, stream_key: str, message_id: str) -> int:
+        print(stream_key, message_id)
+        return await self._client.xdel(stream_key, message_id)
+
+    async def delete_messages(self, stream_key: str, message_ids: list[str]) -> int:
+        """
+        Delete multiple messages from a Redis stream in a single command.
+
+        Args:
+            stream_key: The Redis stream key
+            message_ids: List of message IDs to delete
+
+        Returns:
+            Number of messages successfully deleted
+        """
+        if not message_ids:
+            return 0
+        return await self._client.xdel(stream_key, *message_ids)
+
     async def close(self):
         """Close the Redis connection."""
         await self._client.close()
+
+
+if __name__ == "__main__":
+    import asyncio
+    from rich import print
+    from postgres_client import PostgresClient
+
+    async def main():
+        redis_client = RedisClient()
+        postgres_client = PostgresClient()
+
+        postgres_client.initialize_schema()
+
+        snapshots = await redis_client.get_orderbook_snapshots(count=1)
+
+        for id, snapshot in snapshots:
+            postgres_client.insert_orderbook_snapshots(
+                redis_stream_id=id,
+                timestamp=snapshot["ingestion_ts"],
+                ticker=snapshot["market_ticker"],
+                yes_dollars=snapshot["yes_dollars"],
+                no_dollars=snapshot["no_dollars"],
+            )
+
+    asyncio.run(main())

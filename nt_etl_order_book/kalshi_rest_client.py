@@ -60,12 +60,12 @@ class KalshiRestClient:
     def get_tickers(self, series_ticker: str) -> list[str]:
         endpoint = "/trade-api/v2/markets"
         limit = 1000
-        status = 'open'
+        status = "open"
 
         url = self._base_url + endpoint
         headers = self._create_headers("GET", path=endpoint)
 
-        params = {"series_ticker": series_ticker, "limit": limit, 'status': status}
+        params = {"series_ticker": series_ticker, "limit": limit, "status": status}
 
         response = requests.get(url=url, params=params, headers=headers)
         markets = response.json()["markets"]
