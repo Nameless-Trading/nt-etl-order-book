@@ -15,7 +15,7 @@ class Producer:
         """Helper to save to Redis with error handling."""
         try:
             message_id = await coro
-            print(f"Saved to Redis: {message_id}")
+            # print(f"Saved to Redis: {message_id}")
         except Exception as e:
             print(f"Error saving to Redis: {e}")
 
