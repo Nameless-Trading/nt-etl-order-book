@@ -97,9 +97,9 @@ class Consumer:
 
                 self.postgres_client.insert_orderbook_snapshots(records_df)
                 num_processed += len(processed_ids)
-                # print(
-                #     f"Processed {len(processed_ids)} snapshots (total: {num_processed})"
-                # )
+                print(
+                    f"Processed {len(processed_ids)} snapshots (total: {num_processed})"
+                )
 
                 if processed_ids:
                     await self.redis_client.delete_messages(
