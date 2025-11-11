@@ -7,13 +7,13 @@ from dotenv import load_dotenv
 
 
 class RedisClient:
-    def __init__(self, redis_public_url: str | None = None):
+    def __init__(self, redis_url: str | None = None):
         load_dotenv(override=True)
 
-        if redis_public_url is None:
-            self._redis_public_url = os.getenv("REDIS_PUBLIC_URL")
+        if redis_url is None:
+            self._redis_url = os.getenv("REDIS_URL")
 
-        self._client = redis.asyncio.from_url(self._redis_public_url)
+        self._client = redis.asyncio.from_url(self._redis_url)
 
     async def save_orderbook_snapshot(self, message: dict) -> str:
         """
