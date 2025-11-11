@@ -163,7 +163,7 @@ class Consumer:
 
                 self.postgres_client.insert_orderbook_deltas(records_df)
                 num_processed += len(processed_ids)
-                # print(f"Processed {len(processed_ids)} deltas (total: {num_processed})")
+                print(f"Processed {len(processed_ids)} deltas (total: {num_processed})")
 
                 if processed_ids:
                     await self.redis_client.delete_messages(
