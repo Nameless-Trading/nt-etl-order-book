@@ -136,6 +136,47 @@ class RedisClient:
 
         return results
 
+    async def get_orderbook_deltas(
+        self, count: int = 10, start_id: str = "-", end_id: str = "+"
+    ) -> list[tuple[str, dict]]:
+        """
+        Get orderbook deltas from the Redis stream.
+
+        Args:
+            count: Maximum number of deltas to retrieve (default: 10)
+            start_id: Starting message ID (default: "-" for beginning of stream)
+            end_id: Ending message ID (default: "+" for end of stream)
+
+        Returns:
+            List of tuples containing (message_id, data_dict) where data_dict
+            contains the delta fields (price, delta, side, etc.).
+        """
+        stream_key = "orderbook:delta"
+
+        # Read from the stream
+        messages = await self._client.xrange(stream_key, start_id, end_id, count)
+
+        # Parse the results
+        results = []
+        for message_id, data in messages:
+            # Decode bytes to strings
+            message_id = (
+                message_id.decode("utf-8")
+                if isinstance(message_id, bytes)
+                else message_id
+            )
+
+            # Decode the data
+            parsed_data = {}
+            for key, value in data.items():
+                key = key.decode("utf-8") if isinstance(key, bytes) else key
+                value = value.decode("utf-8") if isinstance(value, bytes) else value
+                parsed_data[key] = value
+
+            results.append((message_id, parsed_data))
+
+        return results
+
     async def delete_message(self, stream_key: str, message_id: str) -> int:
         print(stream_key, message_id)
         return await self._client.xdel(stream_key, message_id)

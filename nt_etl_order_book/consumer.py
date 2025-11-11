@@ -20,9 +20,10 @@ class Consumer:
         self.postgres_client.initialize_schema()
         print("Database schema initialized")
 
-        # Process existing snapshots first
+        # Process existing snapshots and deltas first
         await self._process_existing_snapshots()
-
+        await self._process_existing_deltas()
+        
         # Then listen for new snapshots
         # TODO
 
@@ -84,7 +85,7 @@ class Consumer:
                     "timestamp": pl.Int64,
                     "ticker": pl.String,
                     "side": pl.String,
-                    "price_dollars": pl.Decimal(6, 4),
+                    "price_dollars": pl.Decimal(5, 4),
                     "contracts": pl.Int32,
                     "redis_stream_id": pl.String,
                 }
@@ -95,9 +96,64 @@ class Consumer:
 
             print(f"Deleting {len(processed_ids)} snapshots from Redis")
             if processed_ids:
-                await self.redis_client.delete_messages(
-                    stream_key="orderbook:snapshot", message_ids=processed_ids
+                await self.redis_client.delete_messages(stream_key="orderbook:snapshot", message_ids=processed_ids)
+
+    async def _process_existing_deltas(self):
+        num_proccessed = 0
+        start_id = "-"
+        records = []
+        processed_ids = []
+
+        print("Processing deltas")
+        while True:
+            messages = await self.redis_client.get_orderbook_deltas(
+                count=100, start_id=start_id
+            )
+
+            # Break if no more messages
+            if not messages:
+                break
+
+            for redis_stream_id, delta in messages:
+                timestamp = delta["ingestion_ts"]
+                ticker = delta["market_ticker"]
+                side = delta["side"]
+                price_dollars = delta["price_dollars"]
+                delta_value = delta["delta"]
+
+                records.append(
+                    {
+                        "timestamp": timestamp,
+                        "ticker": ticker,
+                        "side": side,
+                        "price_dollars": price_dollars,
+                        "delta": delta_value,
+                        "redis_stream_id": redis_stream_id,
+                    }
                 )
+
+                processed_ids.append(redis_stream_id)
+                num_proccessed += 1
+                start_id = "(" + redis_stream_id
+
+        if len(records) > 0:
+            records_df = pl.DataFrame(records).cast(
+                {
+                    "timestamp": pl.Int64,
+                    "ticker": pl.String,
+                    "side": pl.String,
+                    "price_dollars": pl.Decimal(5, 4),
+                    "delta": pl.Int32,
+                    "redis_stream_id": pl.String,
+                }
+            )
+
+            print(f"Inserting {len(processed_ids)} deltas into Postgres")
+            self.postgres_client.insert_orderbook_deltas(records_df)
+
+            print(f"Deleting {len(processed_ids)} deltas from Redis")
+            if processed_ids:
+                await self.redis_client.delete_messages("orderbook:delta", processed_ids)
 
 
 if __name__ == "__main__":

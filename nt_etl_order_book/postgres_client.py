@@ -36,11 +36,31 @@ class PostgresClient:
                 )
             """
             )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS orderbook_deltas (
+                    timestamp BIGINT NOT NULL,
+                    ticker VARCHAR(50) NOT NULL,
+                    side VARCHAR(10) NOT NULL,
+                    price_dollars DECIMAL(5, 4) NOT NULL,
+                    delta INTEGER NOT NULL,
+                    redis_stream_id VARCHAR(50) NOT NULL
+                )
+            """
+            )
             self._conn.commit()
 
     def insert_orderbook_snapshots(self, records_df: pl.DataFrame):
         records_df.write_database(
             table_name="orderbook_snapshots",
+            connection=self._database_url,
+            if_table_exists="append",
+            engine="adbc",
+        )
+
+    def insert_orderbook_deltas(self, records_df: pl.DataFrame):
+        records_df.write_database(
+            table_name="orderbook_deltas",
             connection=self._database_url,
             if_table_exists="append",
             engine="adbc",
