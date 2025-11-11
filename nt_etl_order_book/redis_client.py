@@ -177,10 +177,6 @@ class RedisClient:
 
         return results
 
-    async def delete_message(self, stream_key: str, message_id: str) -> int:
-        print(stream_key, message_id)
-        return await self._client.xdel(stream_key, message_id)
-
     async def delete_messages(self, stream_key: str, message_ids: list[str]) -> int:
         """
         Delete multiple messages from a Redis stream in a single command.
@@ -199,28 +195,3 @@ class RedisClient:
     async def close(self):
         """Close the Redis connection."""
         await self._client.close()
-
-
-if __name__ == "__main__":
-    import asyncio
-    from rich import print
-    from postgres_client import PostgresClient
-
-    async def main():
-        redis_client = RedisClient()
-        postgres_client = PostgresClient()
-
-        postgres_client.initialize_schema()
-
-        snapshots = await redis_client.get_orderbook_snapshots(count=1)
-
-        for id, snapshot in snapshots:
-            postgres_client.insert_orderbook_snapshots(
-                redis_stream_id=id,
-                timestamp=snapshot["ingestion_ts"],
-                ticker=snapshot["market_ticker"],
-                yes_dollars=snapshot["yes_dollars"],
-                no_dollars=snapshot["no_dollars"],
-            )
-
-    asyncio.run(main())

@@ -1,8 +1,8 @@
 import os
 
+import polars as pl
 import psycopg2
 from dotenv import load_dotenv
-import polars as pl
 
 
 class PostgresClient:

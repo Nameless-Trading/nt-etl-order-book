@@ -1,8 +1,8 @@
 import asyncio
 
+import polars as pl
 from postgres_client import PostgresClient
 from redis_client import RedisClient
-import polars as pl
 
 
 class Consumer:
@@ -97,7 +97,9 @@ class Consumer:
 
                 self.postgres_client.insert_orderbook_snapshots(records_df)
                 num_processed += len(processed_ids)
-                print(f"Processed {len(processed_ids)} snapshots (total: {num_processed})")
+                print(
+                    f"Processed {len(processed_ids)} snapshots (total: {num_processed})"
+                )
 
                 if processed_ids:
                     await self.redis_client.delete_messages(
@@ -167,7 +169,3 @@ class Consumer:
                     await self.redis_client.delete_messages(
                         "orderbook:delta", processed_ids
                     )
-
-
-if __name__ == "__main__":
-    asyncio.run(Consumer().run())

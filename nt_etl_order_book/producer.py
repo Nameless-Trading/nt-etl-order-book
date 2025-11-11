@@ -24,9 +24,6 @@ class Producer:
             series_ticker=series_ticker
         )
 
-        # # TESTING!
-        # market_tickers = ['KXNCAAFGAME-25NOV15TEXUGA-UGA']
-
         try:
             async for message in self.kalshi_ws_client.get_order_book_messages(
                 market_tickers=market_tickers
